@@ -3,17 +3,17 @@
 		<h2>Calendar</h2>
             <div class="row">
                 <div class="col-5">
-                	<form @submit.prevent="addEvent">
+                	<form >
 						<div class="form-group">
-							<input type="text" class="form-control" aria-label="Small" aria-describedby="inputGroup-sizing-sm" v-model="event.name">
+							<input type="text" class="form-control" required aria-label="Small" aria-describedby="inputGroup-sizing-sm" v-model="event.name">
 						</div>
 						<div class="form-group">
-							<date-range-picker v-model="range" class="form-control" :options="options" @change="setRangeValue"/>
+							<date-range-picker v-model="range" required class="form-control" id="datepicker" :options="options" @change="setRangeValue"/>
 						</div>
 
-						<div class="form-group">
+						<div class="form-group required">
 							<div class="form-check form-check-inline">
-							  <input class="form-check-input" type="checkbox" id="monday" :value="checkedDays.mon" v-model="checkedDays_" @click="handleCheck">
+							  <input class="form-check-input" type="checkbox" id="monday" :value="checkedDays.mon" v-model="checkedDays_" @click="handleCheck" >
 							  <label class="form-check-label" for="monday">Mon</label>
 							</div>
 							<div class="form-check form-check-inline">
@@ -42,7 +42,7 @@
 							</div>				
 						</div>
 						<div class="form-group">
-							<button type="submit" class="btn btn-primary" @click="datePickerChange">Save</button>
+							<button type="submit" class="btn btn-primary" @click="handleSubmit">Save</button>
 						</div>
 					</form>
                 </div>
@@ -55,8 +55,8 @@
                         </tr>
                       </thead>
                       <tbody >
-                        <tr v-for="event in allEvents" v-bind:key="event.id" >
-                          <th scope="row">{{ event.date }} {{ event.name }}</th>
+                        <tr v-for="event in allEvents"  v-bind:key="event.id" >
+                          <td scope="row"><b>{{ event.date }} - </b>    {{ event.name }}</td>
                           <td></td> 
                         </tr>
                       </tbody>
@@ -76,7 +76,7 @@
 		  range: '',
 		  options: {
 		      locale: {
-		        format: 'MM/DD/YYYY'
+		        format: 'DD/MM/YYYY',
 		      }
 		  },
 		  event: {
@@ -101,14 +101,15 @@
 		};
 	},
 	 created() {
-	    this.fetchEvents();
+		this.fetchEvents();
+		this.getDateToday();
 	  },
 
 	methods: {
 
 	    fetchEvents() {
-	    let events = null;
-	      fetch('events')
+	    	let events = null;
+	      	fetch('events')
 	        .then(res => res.json())
 	        .then(res => {
 	          events = res;
@@ -119,30 +120,35 @@
 	        
 	    },
 	    processEvents(events) {
-	    	let processEvents = [];
-			let first_date =events[0];  
-			let last_date=events[events.length-1];
-			console.log(last_date);
 
-	    	events.forEach(item => {
-
-	    		let days = ["mon", "tue", "wed", "thur", "fri", "sat", "sun"];
-	    		let d = new Date(item.event_date);
-	    		
+			let processEvents = [];
+			var first_iteration = true;
+			for (var key in events) {
+				
+				var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", 
+				"November", "December"];
+				 
+				let days = ["mon", "tue", "wed", "thur", "fri", "sat", "sun"];
+				let d = new Date(key);
 				let date = d.getDate()+' '+days[d.getDay()];
-	    		processEvents.push({
-	    			name: item.event_name,
-	    			date: date,
-	    			original_date: new Date(item.event_date)
-	    		});
-	    	});
-			processEvents.sort((a, b) => b.original_date - a.original_date);
-	    	 
-			return processEvents;
-   	
+				if(first_iteration){
+					this.startDate = months[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();
+					first_iteration = false;
+				}
+				
+
+				processEvents.push({
+					name: (events[key] !== null ) ? events[key][0].event_name : '',
+					date: date,
+					original_date: d
+				});
+
+			}
+			return processEvents;					
 	    },
 	
       	addEvent(){
+			  console.log(this.formData);
 	      if (this.edit === false) {
 	        fetch('/events', {
 	          method: 'post',
@@ -154,14 +160,14 @@
 	        })
 	          .then(res => res.json())
 	          .then(data => {
-	            console.log(data)
+	            this.fetchEvents();
 	          })
 	          .catch(err => { console.log(err) });
 	      } 
       },
       setRangeValue(value){
 
-      	if(value) {
+		if(value) {
       		let newdates = [];
 	      	value.forEach(item => {
 				let datearray = item.split("/");
@@ -177,7 +183,7 @@
 
 	      	let dateranges = this.getDates(newdates[0], newdates[1]) ;
 	      	this.dateranges = dateranges;
-
+			console.log(dateranges);
       	}
       },
 
@@ -192,30 +198,49 @@
 	    return dateArray;
 	},
       handleCheck(value){
-      	
+		  this.checkedDays_.push(value.target.value);
+		  console.log(this.checkedDays_);
       },		
-      datePickerChange(value){
-      	
+      handleSubmit(value){
+      	value.preventDefault();
+		var checkboxes = document.querySelectorAll('input[type="checkbox"]');
+		var checkedOne = Array.prototype.slice.call(checkboxes).some(x => x.checked);
 
-  		var days = ["mon", "tue", "wed", "thur", "fri", "sat", "sun"];
-  		let data = [];
+		if(checkedOne === true ) {
+			var days = ["mon", "tue", "wed", "thur", "fri", "sat", "sun"];
+			let data = [];
+			
+			if(this.dateranges == null ) {
+				this.setRangeValue(document.getElementById("datepicker").value.replace(/\s/g, '').split('-'));
+			}
+			console.log(this.dateranges);
+			this.dateranges.forEach(item => {
+			
+				let getday = days[new Date(item).getDay()];
+				let value = {	
+					name: this.event.name,
+					date: item
+				}
 
-      	this.dateranges.forEach(item => {
-      	
-      		let getday = days[new Date(item).getDay()];
-      		let value = {	
-      			name: this.event.name,
-      			date: item
-      		}
+				if(this.checkedDays_.includes(getday)) {
+					data.push(value);
+				}
+			});
+			this.formData = data;
+			this.addEvent();
+		}else{
+			alert('Please choose atleast one day!');
+		}    
 
-      		if(this.checkedDays_.includes(getday)) {
-	      		data.push(value);
-      		}
-      	});
-      	this.formData = data;
-	     
+	  },
 
-      }
+	  
+	  getDateToday(){
+		  let today = new Date();
+		  let months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", 
+	      	"November", "December"];
+		  this.startDate = months[today.getMonth()]+' '+today.getDate()+', '+today.getFullYear();
+	  }
 	}
   };
 </script>
